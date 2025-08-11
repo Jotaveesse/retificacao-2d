@@ -37,10 +37,11 @@ function getTransformedBounds(width, height, H) {
     return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
 }
 
-export function applyHomography(sourceCtx, targetCtx, H) {
+export function applyHomography(sourceCtx, targetCtx, image, H) {
     const w = sourceCtx.canvas.width;
     const h = sourceCtx.canvas.height;
-    const srcData = sourceCtx.getImageData(0, 0, w, h);
+    // const srcData = sourceCtx.getImageData(0, 0, w, h);
+    const srcData = image;
 
     const bounds = getTransformedBounds(w, h, H);
 
@@ -61,28 +62,50 @@ export function applyHomography(sourceCtx, targetCtx, H) {
     const dstData = targetCtx.createImageData(outW, outH);
     const invH = math.inv(H_final);
 
+    const m00 = invH[0][0], m01 = invH[0][1], m02 = invH[0][2];
+    const m10 = invH[1][0], m11 = invH[1][1], m12 = invH[1][2];
+    const m20 = invH[2][0], m21 = invH[2][1], m22 = invH[2][2];
+
+    const src = srcData.data;
+    const dst = dstData.data;
+
     for (let j = 0; j < outH; j++) {
+        const wy = j * scaleY;
+
+        let X = m01 * wy + m02;
+        let Y = m11 * wy + m12;
+        let Z = m21 * wy + m22;
+
+        const dX = m00 * scaleX;
+        const dY = m10 * scaleX;
+        const dZ = m20 * scaleX;
+
         for (let i = 0; i < outW; i++) {
-            const warpedX = i * scaleX;
-            const warpedY = j * scaleY;
-            const v = math.multiply(invH, [warpedX, warpedY, 1]);
-            const sx = v[0] / v[2];
-            const sy = v[1] / v[2];
-            const sx_i = Math.round(sx);
-            const sy_i = Math.round(sy);
+            const sx = X / Z;
+            const sy = Y / Z;
+
+            const sx_i = (sx + 0.5) | 0;    //arrendonda de modo rapido
+            const sy_i = (sy + 0.5) | 0;
+
             const di = (j * outW + i) * 4;
 
             if (sx_i >= 0 && sx_i < w && sy_i >= 0 && sy_i < h) {
                 const si = (sy_i * w + sx_i) * 4;
-                dstData.data[di] = srcData.data[si];
-                dstData.data[di + 1] = srcData.data[si + 1];
-                dstData.data[di + 2] = srcData.data[si + 2];
-                dstData.data[di + 3] = srcData.data[si + 3];
+                dst[di] = src[si];
+                dst[di + 1] = src[si + 1];
+                dst[di + 2] = src[si + 2];
+                dst[di + 3] = src[si + 3];
             } else {
-                dstData.data.fill(255, di, di + 4);
-                dstData.data[di + 3] = 255;
+                dst[di] = dst[di + 1] = dst[di + 2] = 255;
+                dst[di + 3] = 255;
             }
+
+            // incrementa pra proximo pixel
+            X += dX;
+            Y += dY;
+            Z += dZ;
         }
     }
     targetCtx.putImageData(dstData, 0, 0);
 }
+

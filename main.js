@@ -5,6 +5,7 @@ import { buildAffineHFromVanishingLine, applyHomography } from './homography.js'
 
 const state = {
     img: new Image(),
+    imgData: new Image(),
     imgLoaded: false,
     points: [],
     showLabels: true,
@@ -43,6 +44,8 @@ window.addEventListener('load', () => {
             resetPoints();
             ui.fitCanvas(canvas, state.img.width, state.img.height);
             redrawAll();
+
+            state.imgData = ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height);
         };
         state.img.src = url;
     });
@@ -160,7 +163,7 @@ function rectifyImage() {
     const method = methodSelect.value;
     let H = getHomography(state.points, method);
 
-    applyHomography(ctx, outCtx, H);
+    applyHomography(ctx, outCtx, state.imgData, H);
 
     redrawAll();
 }
