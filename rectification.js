@@ -52,7 +52,7 @@ export function getVanishingDataCross3(points) {
 
 export function getMetricHomography(points) {
     const linesPairs = [];
-    for (let i = 0; i < 20; i += 4) {
+    for (let i = 0; i < points.length-3; i += 4) {
         const l = numerical.lineFromPoints(points[i], points[i + 1]);
         const m = numerical.lineFromPoints(points[i + 2], points[i + 3]);
         linesPairs.push([l, m]);

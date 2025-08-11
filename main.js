@@ -86,7 +86,6 @@ window.addEventListener('load', () => {
             movingPoint = null;
             redrawAll();
             ui.updatePointsList(pointsList, state.points);
-            // rectifyImage();
             return
         }
 
@@ -104,6 +103,11 @@ window.addEventListener('load', () => {
         }
 
         addPoint(x, y);
+
+        if (state.points.length >= maxPoints) {
+            rectifyImage();
+            return;
+        }
     });
 
     canvas.addEventListener('mousemove', (ev) => {
@@ -118,7 +122,7 @@ window.addEventListener('load', () => {
             redrawAll();
             ui.updatePointsList(pointsList, state.points);
 
-            if(methodMaxPoints[methodSelect.value] === state.points.length) {
+            if (methodMaxPoints[methodSelect.value] <= state.points.length) {
                 rectifyImage();
             }
         }
@@ -221,7 +225,7 @@ function getHomography(points, method) {
             break;
         }
         case 'metric': {
-            if (points.length !== 20) {
+            if (points.length < 20) {
                 alert('Método métrico requer 20 pontos: 5 pares de retas ortogonais (2 pontos por reta).');
                 break;
             }
