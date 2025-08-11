@@ -171,3 +171,55 @@ function findVanishingPointFrom4Points(A, B, C, D, CR_real = 1) {
 
     return [vx, vy, 1];
 }
+
+export function fitEllipse(points) {
+    if (points.length < 5) throw new Error("Need at least 5 points");
+
+    const M = [];
+    for (let { x, y } of points) {
+        M.push([x * x, x * y, y * y, x, y, -1]);
+    }
+
+    const { u, v, q } = svd.svd(M);
+    const coeffs = v[v.length - 1]; // [A, B, C, D, E, F]
+    return coeffs;
+}
+
+export function conicToEllipseParams(A, B, C, D, E, F) {
+    let Cmat = [
+        [A, B / 2, D / 2],
+        [B / 2, C, E / 2],
+        [D / 2, E / 2, F]
+    ];
+
+    let a = Cmat[0][0];
+    let b = Cmat[0][1];
+    let c = Cmat[1][1];
+    let d = Cmat[0][2];
+    let e = Cmat[1][2];
+    let f = Cmat[2][2];
+
+
+    let det = a * c - b * b;
+    let x0 = (b * e - c * d) / det;
+    let y0 = (b * d - a * e) / det;
+
+    let F_c = f + a * x0 * x0 + 2 * b * x0 * y0 + c * y0 * y0 + 2 * d * x0 + 2 * e * y0;
+
+    let M = [[a, b], [b, c]];
+
+    let svdRes = svd.svd(M);
+    let U = svdRes.u;
+    let S = svdRes.q;
+
+    let axis1 = Math.sqrt(Math.abs(F_c) / S[0]);
+    let axis2 = Math.sqrt(Math.abs(F_c) / S[1]);
+
+    let angle = Math.atan2(U[1][0], U[0][0]);
+
+    return {
+        center: [x0, y0],
+        axes: [axis1, axis2],
+        angle: angle
+    };
+}

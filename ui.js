@@ -1,5 +1,5 @@
 import { normalizeHomogPoint } from './math.js';
-import * as svd from './svd.js';
+import * as rectification from './rectification.js';
 
 export function fitCanvas(canvas, warpedWidth, warpedHeight, maxWidth = 900, maxHeight = 600) {
     const ratio = Math.min(maxWidth / warpedWidth, maxHeight / warpedHeight);
@@ -33,76 +33,6 @@ function drawLine(ctx, start, end, lineWidth = 5, color = 'black') {
     ctx.lineTo(end.x, end.y);
     ctx.strokeStyle = color;
     ctx.stroke();
-}
-
-function drawEllipseFromConic(ctx, coeffs, steps = 200) {
-    const [A, B, C, D, E, F] = coeffs;
-
-    // To draw, we can brute-force scan angles and find corresponding points
-    // BUT here we'll just sample by solving for x,y in rotated space — simplified:
-    // Better: convert to center/axes/angle first.
-
-    const params = conicToEllipseParams(A, B, C, D, E, F); // needs helper
-    const cx = params.center[0]/2;
-    const cy = params.center[1]/2;
-    const a = params.axes[0]/8;
-    const b = params.axes[1]/8;
-    const angle = params.angle;
-
-    ctx.beginPath();
-    ctx.ellipse(cx, cy, a, b, angle, 0, 2 * Math.PI);
-    ctx.strokeStyle = 'white';
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.ellipse(cx, cy, a, b, angle, 0, 2 * Math.PI);
-    ctx.strokeStyle = 'black';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.arc(cx, cy, 5, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgb(0, 0, 0)';
-    ctx.fill();
-}
-
-function conicToEllipseParams(a, b, c, d, e, f) {
-
-    // Solve for center
-    let det = a * c - b * b;
-    let x0 = (b * e - c * d) / det;
-    let y0 = (b * d - a * e) / det;
-
-    // Translate to center
-    let F = f + a * x0 * x0 + 2 * b * x0 * y0 + c * y0 * y0 + 2 * d * x0 + 2 * e * y0;
-
-    // Eigen decomposition for orientation
-    let M = [[a, b], [b, c]];
-
-    // Compute SVD of M
-    let svdRes = svd.svd(M);
-    let U = svdRes.u;      // eigenvectors as columns
-    let S = svdRes.q;      // singular values (all positive)
-
-    // Recover signed eigenvalues λ_i = v_iᵀ M v_i
-    let eigVals = [];
-    for (let i = 0; i < S.length; i++) {
-        let v = [U[0][i], U[1][i]];       // i-th eigenvector (column)
-        let Mv = math.multiply(M, v);
-        eigVals[i] = math.multiply(v, Mv);  // vᵀ M v
-    }
-
-    // Axes lengths from eigenvalues and F
-    let axisLengths = eigVals.map(val => Math.sqrt(-F / val));
-
-    // Orientation angle from first eigenvector
-    // atan2(y, x) using first eigenvector's components
-    let angle = Math.atan2(U[1][0], U[0][0]);
-
-    return {
-        center: [x0, y0],
-        axes: axisLengths,
-        angle: angle
-    };
 }
 
 export function redraw(ctx, { img, imgLoaded, points, method, showLabels }) {
@@ -152,21 +82,23 @@ export function redraw(ctx, { img, imgLoaded, points, method, showLabels }) {
             drawLine(ctx, a, b, 2, 'rgb(255, 255, 255)');
         }
     } else if (method === 'circle' && points.length >= 5) {
-        const coeffs = fitEllipse(points.slice(0, 5));
-        drawEllipseFromConic(ctx, coeffs);
+        const translatedPoints = structuredClone(points);
+        const firstPoint = points[0];
+        
+        translatedPoints.map(p=>{
+            p.x -= firstPoint.x;
+            p.y -= firstPoint.y;
+        });
+
+        const coeffs = rectification.fitEllipse(translatedPoints);
+        drawEllipseFromConic(ctx, coeffs, firstPoint);
     }
 
     // desenha pontos
     for (let i = 0; i < points.length; i++) {
         const p = points[i];
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgb(0, 0, 0)';
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgb(255, 255, 255)';
-        ctx.fill();
+        drawPoint(ctx, p.x, p.y, 5, 'rgb(0, 0, 0)');
+        drawPoint(ctx, p.x, p.y, 3, 'rgb(255, 255, 255)');
         if (showLabels) {
             ctx.miterLimit = 2;
             ctx.font = '16px monospace';
@@ -180,19 +112,36 @@ export function redraw(ctx, { img, imgLoaded, points, method, showLabels }) {
 
 }
 
-function fitEllipse(points) {
-    if (points.length < 5) throw new Error("Need at least 5 points");
+function drawPoint(ctx, x, y, size=2, color='black'){
+    ctx.beginPath();
+    ctx.arc(x, y, size, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+}
 
-    // Build matrix for Ax = 0
-    const M = [];
-    for (let { x, y } of points) {
-        M.push([x * x, x * y, y * y, x, y, 1]);
-    }
+function drawEllipse(ctx, cx, cy, a, b, angle, lineWidth=2, color='black'){
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, a, b, angle, 0, 2 * Math.PI);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineWidth;
+    ctx.stroke();
+}
 
-    // Solve with SVD (last column of V is solution)
-    const { u, v, q } = svd.svd(M);
-    const coeffs = v[v.length - 1]; // [A, B, C, D, E, F]
-    return coeffs;
+function drawEllipseFromConic(ctx, coeffs, firstPoint) {
+    const [A, B, C, D, E, F] = coeffs;
+
+    const params = rectification.conicToEllipseParams(A, B, C, D, E, F);
+    const cx = params.center[0] + firstPoint.x;
+    const cy = params.center[1] + firstPoint.y;
+    const a = params.axes[0];
+    const b = params.axes[1];
+    const angle = params.angle;
+
+    drawEllipse(ctx, cx, cy, a, b, angle, 5, 'black');
+    drawEllipse(ctx, cx, cy, a, b, angle, 2, 'white');
+
+    drawPoint(ctx, cx, cy, 5, 'rgb(0, 0, 0)');
+    drawPoint(ctx, cx, cy, 3, 'rgb(255, 255, 255)');
 }
 
 export function drawVanishingVisuals(ctx, v1, v2, l) {

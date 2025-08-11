@@ -167,6 +167,7 @@ function rectifyImage() {
 
     const method = methodSelect.value;
     let H = getHomography(state.points, method);
+    redrawAll();
 
     applyHomography(ctx, outCtx, state.imgData, H);
 
