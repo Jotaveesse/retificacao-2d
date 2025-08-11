@@ -16,7 +16,8 @@ const methodMaxPoints = {
     horizon: 2,
     crossratio3: 6,
     crossratio4: 8,
-    metric: 20
+    metric: 20,
+    circle: 5
 };
 
 const canvas = document.getElementById('canvas');
@@ -233,8 +234,16 @@ function getHomography(points, method) {
             H = rect.getMetricHomography(points);
             break;
         }
+        case 'circle': {
+            if (points.length < 5) {
+                alert('Método circular requer 5 pontos.');
+                break;
+            }
+
+            break;
+        }
         default:
-            alert("Selected method is not recognized.");
+            alert("Método selecionado não foi reconhecido");
     }
 
     return H;
