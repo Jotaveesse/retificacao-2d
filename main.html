@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Affine Rectification — Demo</title>
+  <script type="module" src="main.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/svd-js@1.1.1/build-umd/svd-js.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjs@11.8.0/lib/browser/math.js"></script>
+
+
+  <link rel="stylesheet" href="main.css">
+</head>
+
+<body>
+  <div class="app">
+    <div class="row">
+      <div class="left">
+        <div class="controls">
+          <label>
+            Imagem:
+            <input id="file" type="file" accept="image/*" />
+          </label>
+
+          <label>
+            Método:
+            <select id="method">
+              <option value="horizon">Linha do horizonte</option>
+              <option value="parallel">Linhas paralelas</option>
+              <option value="crossratio3">Razão cruzada equidistante</option>
+              <option value="crossratio4">Razão cruzada</option>
+              <option value="metric">Métrica</option>
+            </select>
+          </label>
+
+          <button id="clear" class="small">Limpar pontos</button>
+          <button id="rectify" class="small">Aplicar retificação</button>
+        </div>
+
+      </div>
+
+      <div class="side">
+        <div class="method-instructions" id="instructions">
+          <strong>Instruções (Parallel Lines)</strong>
+          <div>Para o método <em>Parallel Lines</em> selecione 8 pontos: duas linhas que são paralelas no mundo (cada
+            linha = 2 clicks). Repita para outra direção paralela (total 4 linhas = 8 clicks). O sistema calculará dois
+            pontos de fuga e a linha do infinito.</div>
+        </div>
+
+        <div class="text-input-container">
+          <label>Razão-cruzada real 1: <input id="crossVal1" type="text" placeholder="ex: 1.5" /></label>
+          <label>Razão-cruzada real 2: <input id="crossVal2" type="text" placeholder="ex: 1.5" /></label>
+        </div>
+
+      </div>
+    </div>
+    <div class="points-list" id="pointsList">Pontos: (nenhum)</div>
+
+    <div class="canvas-container">
+      <canvas id="canvas" width="900" height="600"></canvas>
+      <canvas id="canvas-out" width="900" height="600"></canvas>
+    </div>
+  </div>
+
+</body>
+
+</html>
