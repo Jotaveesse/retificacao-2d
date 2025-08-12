@@ -82,16 +82,28 @@ export function redraw(ctx, { img, imgLoaded, points, method, showLabels }) {
             drawLine(ctx, a, b, 2, 'rgb(255, 255, 255)');
         }
     } else if (method === 'circle' && points.length >= 5) {
-        const translatedPoints = structuredClone(points);
+        const translatedPoints = structuredClone(points.slice(0, 5));
         const firstPoint = points[0];
-        
-        translatedPoints.map(p=>{
+
+        translatedPoints.map(p => {
             p.x -= firstPoint.x;
             p.y -= firstPoint.y;
         });
 
         const coeffs = rectification.fitEllipse(translatedPoints);
         drawEllipseFromConic(ctx, coeffs, firstPoint);
+
+        if (points.length >= 10) {
+            const translatedPoints2 = structuredClone(points.slice(5, 10));
+            const firstPoint2 = points[5];
+
+            translatedPoints2.map(p => {
+                p.x -= firstPoint2.x;
+                p.y -= firstPoint2.y;
+            });
+            const coeffs2 = rectification.fitEllipse(translatedPoints2);
+            drawEllipseFromConic(ctx, coeffs2, firstPoint2);
+        }
     }
 
     // desenha pontos
@@ -112,14 +124,14 @@ export function redraw(ctx, { img, imgLoaded, points, method, showLabels }) {
 
 }
 
-function drawPoint(ctx, x, y, size=2, color='black'){
+function drawPoint(ctx, x, y, size = 2, color = 'black') {
     ctx.beginPath();
     ctx.arc(x, y, size, 0, Math.PI * 2);
     ctx.fillStyle = color;
     ctx.fill();
 }
 
-function drawEllipse(ctx, cx, cy, a, b, angle, lineWidth=2, color='black'){
+function drawEllipse(ctx, cx, cy, a, b, angle, lineWidth = 2, color = 'black') {
     ctx.beginPath();
     ctx.ellipse(cx, cy, a, b, angle, 0, 2 * Math.PI);
     ctx.strokeStyle = color;
