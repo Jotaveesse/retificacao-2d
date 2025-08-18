@@ -29,6 +29,7 @@ const outputCanvas = document.getElementById('canvas-out');
 const outCtx = outputCanvas.getContext('2d');
 const fileInput = document.getElementById('file');
 const methodSelect = document.getElementById('method');
+const stretchCheckbox = document.getElementById('stretchCheckbox');
 const pointsList = document.getElementById('pointsList');
 const instructions = document.getElementById('instructions');
 const rectifyBtn = document.getElementById('rectify');
@@ -38,7 +39,7 @@ const ratioInput2 = document.getElementById('ratioInput2');
 
 window.addEventListener('load', () => {
     ui.setInstructions(instructions, methodSelect.value);
-    inCtx.fillStyle = '#f3f4f7';
+    inCtx.fillStyle = 'white';
     inCtx.fillRect(0, 0, inputCanvas.width, inputCanvas.height);
 
     fileInput.addEventListener('change', (e) => {
@@ -48,7 +49,6 @@ window.addEventListener('load', () => {
         state.img.onload = () => {
             state.imgLoaded = true;
             resetPoints();
-            canvas.fitCanvas(inputCanvas, state.img.width, state.img.height);
             redrawAll();
 
             state.imgData = inCtx.getImageData(0, 0, inCtx.canvas.width, inCtx.canvas.height);
@@ -142,11 +142,18 @@ window.addEventListener('load', () => {
 
     methodSelect.addEventListener('change', () => {
         ui.setInstructions(instructions, methodSelect.value);
+        const hideRatioInputs = !['crossratio', 'geometric', 'homography1d'].includes(methodSelect.value);
+        document.getElementsByClassName("text-input-container")[0].style.display = hideRatioInputs ? 'none' : 'flex';
+        
+        resetPoints();
+        redrawAll();
+        ui.updatePointsList(pointsList, state.points);
     });
 
     rectifyBtn.addEventListener('click', rectifyImage);
-    ratioInput1.addEventListener('change', rectifyImage);
-    ratioInput2.addEventListener('change', rectifyImage);
+    ratioInput1.addEventListener('keyup', rectifyImage);
+    ratioInput2.addEventListener('keyup', rectifyImage);
+    stretchCheckbox.addEventListener('change', rectifyImage);
     clearBtn.addEventListener('click', resetPoints);
 });
 
@@ -161,7 +168,7 @@ function rectifyImage() {
 
     redrawAll();
 
-    canvas.applyHomography(inCtx, outCtx, state.imgData, H);
+    canvas.applyHomography(inCtx, outCtx, state.imgData, H, stretchCheckbox.checked);
 
     redrawAll();
 }

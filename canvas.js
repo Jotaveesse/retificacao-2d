@@ -6,7 +6,16 @@ export function redraw(ctx, { img, imgLoaded, points, method, showLabels }) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     if (imgLoaded) {
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const minScale = Math.min(canvas.width / img.width, canvas.height / img.height);
+
+        const newW = img.width * minScale;
+        const newH = img.height * minScale;
+
+        // center offsets
+        const offsetX = (canvas.width - newW) / 2;
+        const offsetY = (canvas.height - newH) / 2;
+
+        ctx.drawImage(img, offsetX, offsetY, newW, newH);
     }
 
     // desenha linhas
@@ -111,75 +120,99 @@ export function drawVanishingVisuals(ctx, v1, v2, l) {
     }
 }
 
-export function applyHomography(sourceCtx, targetCtx, image, H) {
+export function applyHomography(sourceCtx, targetCtx, image, H, stretchToFit = false) {
+    //largura e altura da imagem original
     const w = sourceCtx.canvas.width;
     const h = sourceCtx.canvas.height;
     const srcData = image;
 
+    // calcula os cantos da imagem transformada usando a homografia H
     const bounds = getTransformedBounds(w, h, H);
 
+    //ajusta a homografia pra que a imagem transformada caiba nos limites calculados
     const H_final = [
         [H[0][0] - bounds.x * H[2][0], H[0][1] - bounds.x * H[2][1], H[0][2] - bounds.x * H[2][2]],
         [H[1][0] - bounds.y * H[2][0], H[1][1] - bounds.y * H[2][1], H[1][2] - bounds.y * H[2][2]],
         [H[2][0], H[2][1], H[2][2]]
     ];
 
-    fitCanvas(targetCtx.canvas, bounds.width, bounds.height);
+    //tamanho da imagem de saída
+    const outW = 900;
+    const outH = 600;
 
-    const outW = targetCtx.canvas.width;
-    const outH = targetCtx.canvas.height;
-    const scaleX = bounds.width / outW;
-    const scaleY = bounds.height / outH;
+    //escalas para mapear os limites da homografia ao tamanho de saída
+    var scaleX = bounds.width / outW;
+    var scaleY = bounds.height / outH;
+    const maxScale = Math.max(scaleX, scaleY);
 
+    if (!stretchToFit) {
+        scaleX = maxScale;
+        scaleY = maxScale;
+    }
+
+    //buffer de saida
     const dstData = targetCtx.createImageData(outW, outH);
+
+    //inverte a homografia para mapear da imagem de saída para a original
     const invH = math.inv(H_final);
 
+    // desestrutura  os elementos da matriz inversa pra otimizar os cálculos dentro do loop
     const m00 = invH[0][0], m01 = invH[0][1], m02 = invH[0][2];
     const m10 = invH[1][0], m11 = invH[1][1], m12 = invH[1][2];
     const m20 = invH[2][0], m21 = invH[2][1], m22 = invH[2][2];
 
-    const src = srcData.data;
-    const dst = dstData.data;
+    const source = srcData.data;
+    const dest = dstData.data;
 
     for (let j = 0; j < outH; j++) {
+        //coordenada y no espaço da homografia
         const wy = j * scaleY;
 
+        //inicializa as coordenadas transformadas para o início da linha
         let X = m01 * wy + m02;
         let Y = m11 * wy + m12;
         let Z = m21 * wy + m22;
 
+        //incremento que sera aplicado ao mover no eixo x
         const dX = m00 * scaleX;
         const dY = m10 * scaleX;
         const dZ = m20 * scaleX;
 
         for (let i = 0; i < outW; i++) {
-            const sx = X / Z;
-            const sy = Y / Z;
+            //normaliza
+            const sourceX = X / Z;
+            const sourceY = Y / Z;
 
-            const sx_i = (sx + 0.5) | 0;
-            const sy_i = (sy + 0.5) | 0;
+            // arredonda as coordenadas de forma otimizada
+            const sourceXRound = (sourceX + 0.5) | 0;
+            const sourceYRound = (sourceY + 0.5) | 0;
 
-            const di = (j * outW + i) * 4;
+            //indice no buffer
+            const destIndex = (j * outW + i) * 4;
 
-            if (sx_i >= 0 && sx_i < w && sy_i >= 0 && sy_i < h) {
-                const si = (sy_i * w + sx_i) * 4;
-                dst[di] = src[si];
-                dst[di + 1] = src[si + 1];
-                dst[di + 2] = src[si + 2];
-                dst[di + 3] = src[si + 3];
-            } else {
-                dst[di] = dst[di + 1] = dst[di + 2] = 255;
-                dst[di + 3] = 255;
+            //checa se ponto caiu dentro da imagem original
+            if (sourceXRound >= 0 && sourceXRound < w && sourceYRound >= 0 && sourceYRound < h) {
+                const sourceIndex = (sourceYRound * w + sourceXRound) * 4;
+
+                //copia valores da origem pra destino
+                dest[destIndex] = source[sourceIndex];
+                dest[destIndex + 1] = source[sourceIndex + 1];
+                dest[destIndex + 2] = source[sourceIndex + 2];
+                dest[destIndex + 3] = source[sourceIndex + 3];
+            } else {    //se cair fora pinta de branco
+                dest[destIndex] = dest[destIndex + 1] = dest[destIndex + 2] = 255;
+                dest[destIndex + 3] = 255;
             }
 
+            //avança as coordenadas homogeneas para o próximo pixel em x
             X += dX;
             Y += dY;
             Z += dZ;
         }
     }
+
     targetCtx.putImageData(dstData, 0, 0);
 }
-
 
 function getTransformedBounds(width, height, H) {
     const corners = [
@@ -198,10 +231,3 @@ function getTransformedBounds(width, height, H) {
 
     return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
 }
-
-export function fitCanvas(canvas, warpedWidth, warpedHeight, maxWidth = 900, maxHeight = 600) {
-    const ratio = Math.min(maxWidth / warpedWidth, maxHeight / warpedHeight);
-    canvas.width = Math.round(warpedWidth * ratio);
-    canvas.height = Math.round(warpedHeight * ratio);
-}
-
