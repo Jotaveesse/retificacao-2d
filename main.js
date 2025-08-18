@@ -1,7 +1,11 @@
-import * as numerical from './math.js';
 import * as ui from './ui.js';
-import * as rect from './rectification.js';
-import { buildAffineHFromVanishingLine, applyHomography } from './homography.js';
+import * as numerical from './helper/numerical.js';
+import * as canvas from './canvas.js';
+import { getVanishingDataParallel } from './rectification/parallel.js';
+import { getVanishingDataHomography1d } from './rectification/homography1d.js';
+import { getVanishingDataCrossRatio } from './rectification/crossratio.js';
+import { getVanishingDataGeometric } from './rectification/geometric.js';
+import { getMetricHomography } from './rectification/metric.js';
 
 const state = {
     img: new Image(),
@@ -19,10 +23,10 @@ const methodMaxPoints = {
     metric: 20,
 };
 
-const canvas = document.getElementById('canvas');
-const ctx = canvas.getContext('2d');
-const out = document.getElementById('canvas-out');
-const outCtx = out.getContext('2d');
+const inputCanvas = document.getElementById('canvas');
+const inCtx = inputCanvas.getContext('2d');
+const outputCanvas = document.getElementById('canvas-out');
+const outCtx = outputCanvas.getContext('2d');
 const fileInput = document.getElementById('file');
 const methodSelect = document.getElementById('method');
 const pointsList = document.getElementById('pointsList');
@@ -34,8 +38,8 @@ const ratioInput2 = document.getElementById('ratioInput2');
 
 window.addEventListener('load', () => {
     ui.setInstructions(instructions, methodSelect.value);
-    ctx.fillStyle = '#f3f4f7';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    inCtx.fillStyle = '#f3f4f7';
+    inCtx.fillRect(0, 0, inputCanvas.width, inputCanvas.height);
 
     fileInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
@@ -44,28 +48,28 @@ window.addEventListener('load', () => {
         state.img.onload = () => {
             state.imgLoaded = true;
             resetPoints();
-            ui.fitCanvas(canvas, state.img.width, state.img.height);
+            canvas.fitCanvas(inputCanvas, state.img.width, state.img.height);
             redrawAll();
 
-            state.imgData = ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height);
+            state.imgData = inCtx.getImageData(0, 0, inCtx.canvas.width, inCtx.canvas.height);
         };
         state.img.src = url;
     });
     let movingPoint = null;
 
-    canvas.addEventListener('mousedown', (ev) => {
+    inputCanvas.addEventListener('mousedown', (ev) => {
         if (ev.button !== 0) return;
         if (!state.imgLoaded) return;
-        const rect = canvas.getBoundingClientRect();
-        const scaleX = canvas.width / rect.width;
-        const scaleY = canvas.height / rect.height;
+        const rect = inputCanvas.getBoundingClientRect();
+        const scaleX = inputCanvas.width / rect.width;
+        const scaleY = inputCanvas.height / rect.height;
         const x = (ev.clientX - rect.left) * scaleX;
         const y = (ev.clientY - rect.top) * scaleY;
 
         const threshold = 10;
 
         const closestPoint = state.points.reduce((closest, point) => {
-            const dist = Math.hypot(point.x - x, point.y - y);
+            const dist = Math.hypot(point[0] - x, point[1] - y);
             if (dist < threshold && dist < closest.dist) {
                 return { point, dist };
             }
@@ -74,14 +78,13 @@ window.addEventListener('load', () => {
 
         movingPoint = closestPoint.point;
 
-
         if (movingPoint) {
-            movingPoint.x = x;
-            movingPoint.y = y;
+            movingPoint[0] = x;
+            movingPoint[1] = y;
         }
     });
 
-    canvas.addEventListener('mouseup', (ev) => {
+    inputCanvas.addEventListener('mouseup', (ev) => {
         if (ev.button !== 0) return;
         if (!state.imgLoaded) return;
         if (movingPoint) {
@@ -91,9 +94,9 @@ window.addEventListener('load', () => {
             return
         }
 
-        const rect = canvas.getBoundingClientRect();
-        const scaleX = canvas.width / rect.width;
-        const scaleY = canvas.height / rect.height;
+        const rect = inputCanvas.getBoundingClientRect();
+        const scaleX = inputCanvas.width / rect.width;
+        const scaleY = inputCanvas.height / rect.height;
         const x = (ev.clientX - rect.left) * scaleX;
         const y = (ev.clientY - rect.top) * scaleY;
 
@@ -112,15 +115,15 @@ window.addEventListener('load', () => {
         }
     });
 
-    canvas.addEventListener('mousemove', (ev) => {
+    inputCanvas.addEventListener('mousemove', (ev) => {
         if (movingPoint) {
-            const rect = canvas.getBoundingClientRect();
-            const scaleX = canvas.width / rect.width;
-            const scaleY = canvas.height / rect.height;
+            const rect = inputCanvas.getBoundingClientRect();
+            const scaleX = inputCanvas.width / rect.width;
+            const scaleY = inputCanvas.height / rect.height;
             const x = (ev.clientX - rect.left) * scaleX;
             const y = (ev.clientY - rect.top) * scaleY;
-            movingPoint.x = x;
-            movingPoint.y = y;
+            movingPoint[0] = x;
+            movingPoint[1] = y;
             redrawAll();
             ui.updatePointsList(pointsList, state.points);
 
@@ -130,7 +133,7 @@ window.addEventListener('load', () => {
         }
     });
 
-    canvas.addEventListener('contextmenu', (ev) => {
+    inputCanvas.addEventListener('contextmenu', (ev) => {
         ev.preventDefault();
         if (state.points.length > 0) {
             removePoint(state.points.length - 1);
@@ -138,7 +141,6 @@ window.addEventListener('load', () => {
     });
 
     methodSelect.addEventListener('change', () => {
-        // resetPoints();
         ui.setInstructions(instructions, methodSelect.value);
     });
 
@@ -148,19 +150,6 @@ window.addEventListener('load', () => {
     clearBtn.addEventListener('click', resetPoints);
 });
 
-function addPoint(x, y) {
-    state.points.push({ x, y });
-    redrawAll();
-    ui.updatePointsList(pointsList, state.points);
-}
-
-function removePoint(index) {
-    if (index >= 0 && index < state.points.length) {
-        state.points.splice(index, 1);
-        redrawAll();
-        ui.updatePointsList(pointsList, state.points);
-    }
-}
 
 function rectifyImage() {
     if (!state.imgLoaded) {
@@ -172,7 +161,7 @@ function rectifyImage() {
 
     redrawAll();
 
-    applyHomography(ctx, outCtx, state.imgData, H);
+    canvas.applyHomography(inCtx, outCtx, state.imgData, H);
 
     redrawAll();
 }
@@ -180,63 +169,46 @@ function rectifyImage() {
 function getHomography(points, ratio1, ratio2, method) {
     let H = null;
 
+    if (points.length < methodMaxPoints[methodSelect.value]) {
+        alert(`São necessários pelo menos ${methodMaxPoints[methodSelect.value]} pontos para o método selecionado.`);
+        return H;
+    }
+
     switch (method) {
         case 'parallel': {
-            if (points.length < 8) {
-                alert('Parallel method requires 8 points (4 lines).');
-                break;
-            }
+            const { l_inf, v1, v2 } = getVanishingDataParallel(points);
 
-            const { l_inf, v1, v2 } = rect.getVanishingDataParallel(points);
-            ui.drawVanishingVisuals(ctx, v1, v2, l_inf);
-            H = buildAffineHFromVanishingLine(l_inf);
+            canvas.drawVanishingVisuals(inCtx, v1, v2, l_inf);
+            H = numerical.homographyFromVanishingLine(l_inf);
 
             break;
         }
         case 'crossratio': {
-            if (points.length < 6) {
-                alert('Four-point Cross-Ratio method requires 6 points: 3 collinear points for each of two directions.');
-                break;
-            }
+            const { l_inf, v1, v2 } = getVanishingDataCrossRatio(points, ratio1, ratio2);
 
-            const { l_inf, v1, v2 } = rect.getVanishingDataCrossRatio(points, ratio1, ratio2);
-            ui.drawVanishingVisuals(ctx, v1, v2, l_inf);
-            H = buildAffineHFromVanishingLine(l_inf);
+            canvas.drawVanishingVisuals(inCtx, v1, v2, l_inf);
+            H = numerical.homographyFromVanishingLine(l_inf);
 
             break;
         }
         case 'homography1d': {
-            if (points.length < 6) {
-                alert('Cross-ratio method requires 6 points (3 collinear per direction).');
-                break;
-            }
+            const { l_inf, v1, v2 } = getVanishingDataHomography1d(points, ratio1, ratio2);
 
-            const { l_inf, v1, v2 } = rect.getVanishingDataHomography1d(points, ratio1, ratio2);
-            ui.drawVanishingVisuals(ctx, v1, v2, l_inf);
-            H = buildAffineHFromVanishingLine(l_inf);
+            canvas.drawVanishingVisuals(inCtx, v1, v2, l_inf);
+            H = numerical.homographyFromVanishingLine(l_inf);
 
             break;
         }
         case 'geometric': {
-            if (points.length < 6) {
-                alert('Cross-ratio method requires 6 points (3 collinear per direction).');
-                break;
-            }
+            const { l_inf, v1, v2 } = getVanishingDataGeometric(points, ratio1, ratio2);
 
-            const { l_inf, v1, v2 } = rect.getVanishingDataGeometric(points, ratio1, ratio2);
-
-            ui.drawVanishingVisuals(ctx, v1, v2, l_inf);
-            H = buildAffineHFromVanishingLine(l_inf);
+            canvas.drawVanishingVisuals(inCtx, v1, v2, l_inf);
+            H = numerical.homographyFromVanishingLine(l_inf);
 
             break;
         }
         case 'metric': {
-            if (points.length < 20) {
-                alert('Método métrico requer 20 pontos: 5 pares de retas ortogonais (2 pontos por reta).');
-                break;
-            }
-
-            H = rect.getMetricHomography(points);
+            H = getMetricHomography(points);
             break;
         }
         default:
@@ -248,11 +220,25 @@ function getHomography(points, ratio1, ratio2, method) {
 
 function redrawAll() {
     const redrawState = { ...state, method: methodSelect.value };
-    ui.redraw(ctx, redrawState);
+    canvas.redraw(inCtx, redrawState);
 }
 
 function resetPoints() {
     state.points = [];
     redrawAll();
     ui.updatePointsList(pointsList, state.points);
+}
+
+function addPoint(x, y) {
+    state.points.push([x, y, 1]);
+    redrawAll();
+    ui.updatePointsList(pointsList, state.points);
+}
+
+function removePoint(index) {
+    if (index >= 0 && index < state.points.length) {
+        state.points.splice(index, 1);
+        redrawAll();
+        ui.updatePointsList(pointsList, state.points);
+    }
 }

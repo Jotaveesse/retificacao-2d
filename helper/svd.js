@@ -1,4 +1,4 @@
-import * as numerical from './math.js';
+import * as numerical from './numerical.js';
 export function svd(A) {
     let transposed = false;
     let M = A.length; 
