@@ -18,7 +18,7 @@ export function svd(A) {
 
         const U_t = math.transpose(svdResult.u);
         const V_t = math.transpose(svdResult.v);
-        const U_t_full = completeOrthonormalBasis(U_t, 6); //preenche a linhas faltantes com base ortonormal
+        const U_t_full = completeOrthonormalBasis(U_t, N); //preenche a linhas faltantes com base ortonormal
 
         return {
             u: V_t,          // V original se torna U

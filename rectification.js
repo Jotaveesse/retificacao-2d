@@ -1,6 +1,6 @@
 import * as numerical from './math.js';
 import * as svd from './svd.js';
-
+import * as ui from './ui.js';
 
 export function getVanishingDataParallel(points) {
     const line1a = numerical.lineFromPoints(points[0], points[1]);
@@ -14,31 +14,26 @@ export function getVanishingDataParallel(points) {
     return { l_inf, v1, v2 };
 }
 
-export function getVanishingDataCross4(points) {
+export function getVanishingDataCrossRatio(points, ratio1, ratio2) {
     const A1 = [points[0].x, points[0].y, 1];
     const B1 = [points[1].x, points[1].y, 1];
     const C1 = [points[2].x, points[2].y, 1];
-    const D1 = [points[3].x, points[3].y, 1];
 
-    const A2 = [points[4].x, points[4].y, 1];
-    const B2 = [points[5].x, points[5].y, 1];
-    const C2 = [points[6].x, points[6].y, 1];
-    const D2 = [points[7].x, points[7].y, 1];
+    const A2 = [points[3].x, points[3].y, 1];
+    const B2 = [points[4].x, points[4].y, 1];
+    const C2 = [points[5].x, points[5].y, 1];
 
-    const CR1_real = 6 / 3; //TODO
-    const CR2_real = 6 / 3;
+    const v1 = findVanishingPointFromCrossRatio(A1, B1, C1, ratio1);
+    const v2 = findVanishingPointFromCrossRatio(A2, B2, C2, ratio2);
 
-    const v1 = findVanishingPointFrom4Points(A1, B1, C1, D1, CR1_real);
-    const v2 = findVanishingPointFrom4Points(A2, B2, C2, D2, CR2_real);
-
-    l_inf = math.cross(v1, v2);
+    const l_inf = math.cross(v1, v2);
 
     return { l_inf, v1, v2 };
 }
 
-export function getVanishingDataCross3(points) {
-    const v1 = findVanishingPoint1D([points[0].x, points[0].y, 1], [points[1].x, points[1].y, 1], [points[2].x, points[2].y, 1]);
-    const v2 = findVanishingPoint1D([points[3].x, points[3].y, 1], [points[4].x, points[4].y, 1], [points[5].x, points[5].y, 1]);
+export function getVanishingDataHomography1d(points, ratio1, ratio2) {
+    const v1 = findVanishingPoint1D([points[0].x, points[0].y, 1], [points[1].x, points[1].y, 1], [points[2].x, points[2].y, 1], ratio1);
+    const v2 = findVanishingPoint1D([points[3].x, points[3].y, 1], [points[4].x, points[4].y, 1], [points[5].x, points[5].y, 1], ratio2);
 
     if (!v1 || !v2) {
         alert("Não foi possível achar pontos de fuga. Os pontos escolhidos são realmente colineares?");
@@ -50,9 +45,23 @@ export function getVanishingDataCross3(points) {
     return { l_inf, v1, v2 };
 }
 
+export function getVanishingDataGeometric(points, ratio1, ratio2) {
+    const v1 = findVanishingPointGeometric(points[0], points[1], points[2], ratio1);
+    const v2 = findVanishingPointGeometric(points[3], points[4], points[5], ratio2);
+
+    if (!v1 || !v2) {
+        alert("Não foi possível achar pontos de fuga. Os pontos escolhidos são realmente colineares?");
+        throw error;
+    }
+
+    const l_inf = math.cross([v1.x, v1.y, 1], [v2.x, v2.y, 1]);
+
+    return { l_inf, v1, v2 };
+}
+
 export function getMetricHomography(points) {
     const linesPairs = [];
-    for (let i = 0; i < points.length-3; i += 4) {
+    for (let i = 0; i < points.length - 3; i += 4) {
         const l = numerical.lineFromPoints(points[i], points[i + 1]);
         const m = numerical.lineFromPoints(points[i + 2], points[i + 3]);
         linesPairs.push([l, m]);
@@ -107,9 +116,12 @@ function extractMetricHomography(line_pairs) {
 }
 
 function computeH1D(worldPts, imgPts) {
-    const X = worldPts.map(p => p[0]), x = imgPts.map(p => p[0]);
+    const X = worldPts.map(p => p[0]);
+    const x = imgPts.map(p => p[0]);
     const A = [
-        [X[0], 1, -x[0] * X[0]], [X[1], 1, -x[1] * X[1]], [X[2], 1, -x[2] * X[2]],
+        [X[0], 1, -x[0] * X[0]],
+        [X[1], 1, -x[1] * X[1]],
+        [X[2], 1, -x[2] * X[2]],
     ];
 
     const b = [x[0], x[1], x[2]];
@@ -133,8 +145,8 @@ function computeH1D(worldPts, imgPts) {
     return [[h00, h01], [h10, 1]];
 }
 
-function findVanishingPoint1D(A, B, C) {
-    const worldPoints = [[0, 1], [1, 1], [2, 1]];
+function findVanishingPoint1D(A, B, C, ratio) {
+    const worldPoints = [[0, 1], [1, 1], [1 + ratio, 1]];
     const lineDir = [C[0] - A[0], C[1] - A[1]];
     const lineMagSq = lineDir[0] ** 2 + lineDir[1] ** 2;
 
@@ -150,17 +162,18 @@ function findVanishingPoint1D(A, B, C) {
     return [A[0] + v_img_scalar * lineDir[0], A[1] + v_img_scalar * lineDir[1], 1];
 }
 
-function findVanishingPointFrom4Points(A, B, C, D, CR_real = 1) {
+function findVanishingPointFromCrossRatio(A, B, C, ratio = 1) {
     const lineStart = [A[0], A[1]];
     const lineEnd = [B[0], B[1]];
+
+    const crossratio = (1 / ratio) + 1;
 
     const a = numerical.projectToLineScalar(A, lineStart, lineEnd);
     const b = numerical.projectToLineScalar(B, lineStart, lineEnd);
     const c = numerical.projectToLineScalar(C, lineStart, lineEnd);
-    const d = numerical.projectToLineScalar(D, lineStart, lineEnd);
 
-    const A_coef = CR_real * (b - c) - (a - c);
-    const B_coef = - (a - c) * b + CR_real * a * (b - c);
+    const A_coef = crossratio * (b - c) - (a - c);
+    const B_coef = - (a - c) * b + crossratio * a * (b - c);
 
     if (Math.abs(A_coef) < 1e-12) throw new Error("Divisao por zero findVanishingPointFrom4Points");
 
@@ -172,54 +185,73 @@ function findVanishingPointFrom4Points(A, B, C, D, CR_real = 1) {
     return [vx, vy, 1];
 }
 
-export function fitEllipse(points) {
-    if (points.length < 5) throw new Error("Need at least 5 points");
-
-    const M = [];
-    for (let { x, y } of points) {
-        M.push([x * x, x * y, y * y, x, y, -1]);
-    }
-
-    const { u, v, q } = svd.svd(M);
-    const coeffs = v[v.length - 1]; // [A, B, C, D, E, F]
-    return coeffs;
+function lineThrough(p1, p2) {
+    const { x: x1, y: y1 } = p1;
+    const { x: x2, y: y2 } = p2;
+    // line in form ax + by + c = 0
+    const a = y1 - y2;
+    const b = x2 - x1;
+    const c = x1 * y2 - x2 * y1;
+    return { a, b, c };
 }
 
-export function conicToEllipseParams(A, B, C, D, E, F) {
-    let Cmat = [
-        [A, B / 2, D / 2],
-        [B / 2, C, E / 2],
-        [D / 2, E / 2, F]
-    ];
+// intersection of two lines
+function intersectLines(L1, L2) {
+    const { a: a1, b: b1, c: c1 } = L1;
+    const { a: a2, b: b2, c: c2 } = L2;
+    const det = a1 * b2 - a2 * b1;
+    if (Math.abs(det) < 1e-12) return null; // parallel
+    const x = (b1 * c2 - b2 * c1) / det;
+    const y = (c1 * a2 - c2 * a1) / det;
+    return { x, y };
+}
 
-    let a = Cmat[0][0];
-    let b = Cmat[0][1];
-    let c = Cmat[1][1];
-    let d = Cmat[0][2];
-    let e = Cmat[1][2];
-    let f = Cmat[2][2];
+// point on line through p in direction dir with step lambda
+function pointOnLineFrom(p, dir, lambda) {
+    return { x: p.x + lambda * dir.x, y: p.y + lambda * dir.y };
+}
 
+// parallel line to "line" through "point"
+function parallelThrough(line, point) {
+    const { a, b } = line;
+    // direction vector of line
+    const dir = { x: -b, y: a };
+    const q = { x: point.x + dir.x, y: point.y + dir.y };
+    return lineThrough(point, q);
+}
 
-    let det = a * c - b * b;
-    let x0 = (b * e - c * d) / det;
-    let y0 = (b * d - a * e) / det;
+function findVanishingPointGeometric(aPrime, bPrime, cPrime, ratio) {
+    // Step 1: pick arbitrary line l through a' not collinear with a'c'
+    const dirAC = { x: cPrime.x - aPrime.x, y: cPrime.y - aPrime.y };
+    const dirL = { x: dirAC.y, y: -dirAC.x }; // perpendicular
+    const lineL = lineThrough(aPrime, { x: aPrime.x + dirL.x, y: aPrime.y + dirL.y });
 
-    let F_c = f + a * x0 * x0 + 2 * b * x0 * y0 + c * y0 * y0 + 2 * d * x0 + 2 * e * y0;
+    const ctx = document.getElementById('canvas').getContext('2d');
+    ui.drawVanishingVisuals(ctx, null, null, [lineL.a, lineL.b, lineL.c]);
 
-    let M = [[a, b], [b, c]];
+    // Step 2: mark off points a=a', b, c on l with ratio
+    const b = pointOnLineFrom(aPrime, dirL, 1 / 4);       // ab = 1
+    const c = pointOnLineFrom(b, dirL, ratio / 4);        // bc = ratio
 
-    let svdRes = svd.svd(M);
-    let U = svdRes.u;
-    let S = svdRes.q;
+    ui.drawPoint(ctx, b.x, b.y, 8, 'white');
+    ui.drawPoint(ctx, c.x, c.y, 8, 'white');
 
-    let axis1 = Math.sqrt(Math.abs(F_c) / S[0]);
-    let axis2 = Math.sqrt(Math.abs(F_c) / S[1]);
+    // Step 3: join bb' and cc' and find intersection o
+    const Lbb = lineThrough(b, bPrime);
+    const Lcc = lineThrough(c, cPrime);
+    const o = intersectLines(Lbb, Lcc);
 
-    let angle = Math.atan2(U[1][0], U[0][0]);
+    ui.drawLine(ctx, b, o, 2, 'yellow');
+    ui.drawLine(ctx, c, o, 2, 'yellow');
+    ui.drawPoint(ctx, o.x, o.y, 8, 'white');
 
-    return {
-        center: [x0, y0],
-        axes: [axis1, axis2],
-        angle: angle
-    };
+    // Step 4: draw line through o parallel to l
+    const Lparallel = parallelThrough(lineL, o);
+
+    // Step 5: intersect that line with a'c'
+    const L_ac = lineThrough(aPrime, cPrime);
+    const vPrime = intersectLines(Lparallel, L_ac);
+    ui.drawPoint(ctx, vPrime.x, vPrime.y, 8, 'yellow');
+
+    return vPrime;
 }

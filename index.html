@@ -26,12 +26,11 @@
           <label>
             Método:
             <select id="method">
-              <option value="horizon">Linha do horizonte</option>
               <option value="parallel">Linhas paralelas</option>
-              <option value="crossratio3">Razão cruzada equidistante</option>
-              <option value="crossratio4">Razão cruzada</option>
+              <option value="homography1d">Homografia 1D</option>
+              <option value="crossratio">Razão cruzada</option>
+              <option value="geometric">Geométrica</option>
               <option value="metric">Métrica</option>
-              <option value="circle">Círculo</option>
             </select>
           </label>
 
@@ -50,8 +49,8 @@
         </div>
 
         <div class="text-input-container">
-          <label>Razão-cruzada real 1: <input id="crossVal1" type="text" placeholder="ex: 1.5" /></label>
-          <label>Razão-cruzada real 2: <input id="crossVal2" type="text" placeholder="ex: 1.5" /></label>
+          <label>Razão real 1: <input id="ratioInput1" type="text" placeholder="ex: 1.5" /></label>
+          <label>Razão real 2: <input id="ratioInput2" type="text" placeholder="ex: 1.5" /></label>
         </div>
 
       </div>
