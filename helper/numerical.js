@@ -52,8 +52,8 @@ export function transformPoint(point, H) {
     return [v[0] / v[2], v[1] / v[2], 1];
 }
 
-export function homographyFromVanishingLine(l_inf) {
-    const [l1, l2, l3] = l_inf;
+export function homographyFromVanishingLine(lineInf) {
+    const [l1, l2, l3] = lineInf;
     if (Math.abs(l3) < EPSILON) {
         console.warn("Imagem já é afim, retornando matrix identidade");
         return [[1, 0, 0], [0, 1, 0], [0, 0, 1]];

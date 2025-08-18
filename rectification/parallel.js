@@ -2,9 +2,9 @@ export function getVanishingDataParallel(points) {
     const v1 = findVanishingPointParallel(points[0], points[1], points[2], points[3]);
     const v2 = findVanishingPointParallel(points[4], points[5], points[6], points[7]);
     
-    const l_inf = math.cross(v1, v2);
+    const lineInf = math.cross(v1, v2);
 
-    return { l_inf, v1, v2 };
+    return { lineInf: lineInf, v1, v2 };
 }
 
 function findVanishingPointParallel(pointA, pointB, pointC, pointD) {

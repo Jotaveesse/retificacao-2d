@@ -144,7 +144,7 @@ window.addEventListener('load', () => {
         ui.setInstructions(instructions, methodSelect.value);
         const hideRatioInputs = !['crossratio', 'geometric', 'homography1d'].includes(methodSelect.value);
         document.getElementsByClassName("text-input-container")[0].style.display = hideRatioInputs ? 'none' : 'flex';
-        
+
         resetPoints();
         redrawAll();
         ui.updatePointsList(pointsList, state.points);
@@ -183,34 +183,34 @@ function getHomography(points, ratio1, ratio2, method) {
 
     switch (method) {
         case 'parallel': {
-            const { l_inf, v1, v2 } = getVanishingDataParallel(points);
+            const { lineInf, v1, v2 } = getVanishingDataParallel(points);
 
-            canvas.drawVanishingVisuals(inCtx, v1, v2, l_inf);
-            H = numerical.homographyFromVanishingLine(l_inf);
+            canvas.drawVanishingVisuals(inCtx, v1, v2, lineInf);
+            H = numerical.homographyFromVanishingLine(lineInf);
 
             break;
         }
         case 'crossratio': {
-            const { l_inf, v1, v2 } = getVanishingDataCrossRatio(points, ratio1, ratio2);
+            const { lineInf, v1, v2 } = getVanishingDataCrossRatio(points, ratio1, ratio2);
 
-            canvas.drawVanishingVisuals(inCtx, v1, v2, l_inf);
-            H = numerical.homographyFromVanishingLine(l_inf);
+            canvas.drawVanishingVisuals(inCtx, v1, v2, lineInf);
+            H = numerical.homographyFromVanishingLine(lineInf);
 
             break;
         }
         case 'homography1d': {
-            const { l_inf, v1, v2 } = getVanishingDataHomography1d(points, ratio1, ratio2);
+            const { lineInf, v1, v2 } = getVanishingDataHomography1d(points, ratio1, ratio2);
 
-            canvas.drawVanishingVisuals(inCtx, v1, v2, l_inf);
-            H = numerical.homographyFromVanishingLine(l_inf);
+            canvas.drawVanishingVisuals(inCtx, v1, v2, lineInf);
+            H = numerical.homographyFromVanishingLine(lineInf);
 
             break;
         }
         case 'geometric': {
-            const { l_inf, v1, v2 } = getVanishingDataGeometric(points, ratio1, ratio2);
+            const { lineInf, v1, v2 } = getVanishingDataGeometric(points, ratio1, ratio2);
 
-            canvas.drawVanishingVisuals(inCtx, v1, v2, l_inf);
-            H = numerical.homographyFromVanishingLine(l_inf);
+            canvas.drawVanishingVisuals(inCtx, v1, v2, lineInf);
+            H = numerical.homographyFromVanishingLine(lineInf);
 
             break;
         }

@@ -5,9 +5,9 @@ export function getVanishingDataGeometric(points, ratio1, ratio2) {
     const v1 = findVanishingPointGeometric(points[0], points[1], points[2], ratio1);
     const v2 = findVanishingPointGeometric(points[3], points[4], points[5], ratio2);
 
-    const l_inf = math.cross([v1[0], v1[1], 1], [v2[0], v2[1], 1]);
+    const lineInf = math.cross([v1[0], v1[1], 1], [v2[0], v2[1], 1]);
 
-    return { l_inf, v1, v2 };
+    return { lineInf, v1, v2 };
 }
 
 function findVanishingPointGeometric(pointA, pointB, pointC, ratio = 1) {
@@ -23,12 +23,11 @@ function findVanishingPointGeometric(pointA, pointB, pointC, ratio = 1) {
 
     canvas.drawVanishingVisuals(ctx, null, null, lineL);
     // marca os pontos a=a', b, c na linha l
-    const b = math.add(pointA, perpDir);       // ab = 1
-    const c = math.add(b, math.multiply(ratio, perpDir));        // bc = ratio
+    const b = math.add(pointA, perpDir);    // ab = 1
+    const c = math.add(b, math.multiply(ratio, perpDir));   // bc = ratio
 
     canvas.drawPoint(ctx, b[0], b[1], 8, 'white');
     canvas.drawPoint(ctx, c[0], c[1], 8, 'white');
-
 
     // liga bb' e cc' e acha a interseção O
     const linebb = math.cross(b, pointB);
