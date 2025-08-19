@@ -1,7 +1,7 @@
 import * as numerical from './helper/numerical.js';
-import {EPSILON} from './helper/numerical.js';
+import { EPSILON } from './helper/numerical.js';
 
-export function redraw(ctx, { img, imgLoaded, points, method, showLabels }) {
+export function redraw(ctx, { img, imgLoaded, points, method }) {
     const { canvas } = ctx;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -55,25 +55,14 @@ export function redraw(ctx, { img, imgLoaded, points, method, showLabels }) {
         const p = points[i];
         drawPoint(ctx, p[0], p[1], 5, 'rgb(0, 0, 0)');
         drawPoint(ctx, p[0], p[1], 3, 'rgb(255, 255, 255)');
-        if (showLabels) {
-            ctx.miterLimit = 2;
-            ctx.font = '16px monospace';
-            ctx.strokeStyle = 'black';
-            ctx.lineWidth = 4;
-            ctx.strokeText(String(i), p[0] + 8, p[1] - 8);
-            ctx.fillStyle = 'white';
-            ctx.fillText(String(i), p[0] + 8, p[1] - 8);
-        }
+        ctx.miterLimit = 2;
+        ctx.font = '16px monospace';
+        ctx.strokeStyle = 'black';
+        ctx.lineWidth = 4;
+        ctx.strokeText(String(i), p[0] + 8, p[1] - 8);
+        ctx.fillStyle = 'white';
+        ctx.fillText(String(i), p[0] + 8, p[1] - 8);
     }
-}
-
-export function drawLine(ctx, start, end, lineWidth = 5, color = 'black') {
-    ctx.lineWidth = lineWidth;
-    ctx.beginPath();
-    ctx.moveTo(start[0], start[1]);
-    ctx.lineTo(end[0], end[1]);
-    ctx.strokeStyle = color;
-    ctx.stroke();
 }
 
 export function drawPoint(ctx, x, y, size = 2, color = 'black') {
@@ -91,12 +80,29 @@ export function drawEllipse(ctx, cx, cy, a, b, angle, lineWidth = 2, color = 'bl
     ctx.stroke();
 }
 
-export function drawVanishingVisuals(ctx, v1, v2, l) {
-    const [a, b, c] = l;
+
+export function drawLine(ctx, start, end, lineWidth = 5, color = 'black') {
+    ctx.lineWidth = lineWidth;
+    ctx.beginPath();
+    ctx.moveTo(start[0], start[1]);
+    ctx.lineTo(end[0], end[1]);
+    ctx.strokeStyle = color;
+    ctx.stroke();
+}
+
+export function drawLineHomog(ctx, line, lineWidth = 2, color = 'black') {
+    const [a, b, c] = line;
     const { width, height } = ctx.canvas;
     const pts = [];
-    if (Math.abs(b) > EPSILON) { pts.push([0, (-c) / b]); pts.push([width, (-c - a * width) / b]); }
-    if (Math.abs(a) > EPSILON) { pts.push([(-c) / a, 0]); pts.push([(-c - b * height) / a, height]); }
+
+    if (Math.abs(b) > EPSILON) {
+        pts.push([0, (-c) / b]);
+        pts.push([width, (-c - a * width) / b]);
+    }
+    if (Math.abs(a) > EPSILON) {
+        pts.push([(-c) / a, 0]);
+        pts.push([(-c - b * height) / a, height]);
+    }
 
     const uniquePts = [];
 
@@ -109,14 +115,7 @@ export function drawVanishingVisuals(ctx, v1, v2, l) {
     }
 
     if (uniquePts.length >= 2) {
-        drawLine(ctx, uniquePts[0], uniquePts[1], 5, 'rgb(0, 0, 0)');
-        drawLine(ctx, uniquePts[0], uniquePts[1], 2, 'rgb(255, 255, 255)');
-        ctx.beginPath();
-        ctx.moveTo(uniquePts[0][0], uniquePts[0][1]);
-        ctx.lineTo(uniquePts[1][0], uniquePts[1][1]);
-        ctx.strokeStyle = 'rgba(200,120,0,0.95)';
-        ctx.lineWidth = 2;
-        ctx.stroke();
+        drawLine(ctx, uniquePts[0], uniquePts[1], lineWidth, color);
     }
 }
 
@@ -137,8 +136,8 @@ export function applyHomography(sourceCtx, targetCtx, image, H, stretchToFit = f
     ];
 
     //tamanho da imagem de saída
-    const outW = 900;
-    const outH = 600;
+    const outW = targetCtx.canvas.width;
+    const outH = targetCtx.canvas.height;
 
     //escalas para mapear os limites da homografia ao tamanho de saída
     var scaleX = bounds.width / outW;
@@ -201,7 +200,7 @@ export function applyHomography(sourceCtx, targetCtx, image, H, stretchToFit = f
                 dest[destIndex + 3] = source[sourceIndex + 3];
             } else {    //se cair fora pinta de branco
                 dest[destIndex] = dest[destIndex + 1] = dest[destIndex + 2] = 255;
-                dest[destIndex + 3] = 255;
+                dest[destIndex + 3] = 0;
             }
 
             //avança as coordenadas homogeneas para o próximo pixel em x
@@ -217,9 +216,9 @@ export function applyHomography(sourceCtx, targetCtx, image, H, stretchToFit = f
 function getTransformedBounds(width, height, H) {
     const corners = [
         numerical.transformPoint([0, 0, 1], H),
-        numerical.transformPoint([width - 1, 0,1], H),
-        numerical.transformPoint([0, height - 1,1], H),
-        numerical.transformPoint([width - 1, height - 1,1], H)
+        numerical.transformPoint([width - 1, 0, 1], H),
+        numerical.transformPoint([0, height - 1, 1], H),
+        numerical.transformPoint([width - 1, height - 1, 1], H)
     ].filter(p => isFinite(p[0]) && isFinite(p[1]));
 
     if (corners.length === 0) return { x: 0, y: 0, width: width, height: height };

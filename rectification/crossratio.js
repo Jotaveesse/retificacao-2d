@@ -1,11 +1,22 @@
+import * as canvas from '../canvas.js';
 import * as numerical from '../helper/numerical.js';
 import { EPSILON } from '../helper/numerical.js';
 
-export function getVanishingDataCrossRatio(points, ratio1, ratio2) {
+export function getVanishingDataCrossRatio(points, ratio1, ratio2, state) {
     const v1 = findVanishingPointCrossRatio(points[0], points[1], points[2], ratio1);
     const v2 = findVanishingPointCrossRatio(points[3], points[4], points[5], ratio2);
 
     const lineInf = math.cross(v1, v2);
+
+    if (state && state.showExtraLines1 && state.showExtraLines2) {
+        canvas.drawLineHomog(state.inputCtx, lineInf, 1, 'DarkOrange');
+    }
+    if(state && state.showExtraLines1) {
+        canvas.drawPoint(state.inputCtx, v1[0], v1[1], 5, 'MediumSeaGreen');
+    }
+    if(state && state.showExtraLines2) {
+        canvas.drawPoint(state.inputCtx, v2[0], v2[1], 5, 'MediumSeaGreen');
+    }
 
     return { lineInf, v1, v2 };
 }

@@ -7,12 +7,36 @@ import { getVanishingDataCrossRatio } from './rectification/crossratio.js';
 import { getVanishingDataGeometric } from './rectification/geometric.js';
 import { getMetricHomography } from './rectification/metric.js';
 
+const inputCanvas = document.getElementById('canvas');
+const inCtx = inputCanvas.getContext('2d');
+const outputCanvas = document.getElementById('canvas-out');
+const outCtx = outputCanvas.getContext('2d');
+
+const fileInput = document.getElementById('file');
+const methodSelect = document.getElementById('method');
+
+const stretchCheckbox = document.getElementById('stretchCheckbox');
+const showLinesCheckbox1 = document.getElementById('showLinesCheckbox1');
+const showLinesCheckbox2 = document.getElementById('showLinesCheckbox2');
+
+const pointsList = document.getElementById('pointsList');
+const instructions = document.getElementById('instructions');
+
+const rectifyBtn = document.getElementById('rectify');
+const clearBtn = document.getElementById('clear');
+
+const ratioInput1 = document.getElementById('ratioInput1');
+const ratioInput2 = document.getElementById('ratioInput2');
+
 const state = {
     img: new Image(),
     imgData: new Image(),
     imgLoaded: false,
     points: [],
-    showLabels: true,
+    showExtraLines1: showLinesCheckbox1.checked,
+    showExtraLines2: showLinesCheckbox2.checked,
+    inputCtx: inCtx,
+    outputCtx: outCtx,
 };
 
 const methodMaxPoints = {
@@ -23,19 +47,7 @@ const methodMaxPoints = {
     metric: 20,
 };
 
-const inputCanvas = document.getElementById('canvas');
-const inCtx = inputCanvas.getContext('2d');
-const outputCanvas = document.getElementById('canvas-out');
-const outCtx = outputCanvas.getContext('2d');
-const fileInput = document.getElementById('file');
-const methodSelect = document.getElementById('method');
-const stretchCheckbox = document.getElementById('stretchCheckbox');
-const pointsList = document.getElementById('pointsList');
-const instructions = document.getElementById('instructions');
-const rectifyBtn = document.getElementById('rectify');
-const clearBtn = document.getElementById('clear');
-const ratioInput1 = document.getElementById('ratioInput1');
-const ratioInput2 = document.getElementById('ratioInput2');
+const buttonDistThreshold = 10;
 
 window.addEventListener('load', () => {
     ui.setInstructions(instructions, methodSelect.value);
@@ -49,7 +61,7 @@ window.addEventListener('load', () => {
         state.img.onload = () => {
             state.imgLoaded = true;
             resetPoints();
-            redrawAll();
+            redrawInputCanvas();
 
             state.imgData = inCtx.getImageData(0, 0, inCtx.canvas.width, inCtx.canvas.height);
         };
@@ -66,11 +78,10 @@ window.addEventListener('load', () => {
         const x = (ev.clientX - rect.left) * scaleX;
         const y = (ev.clientY - rect.top) * scaleY;
 
-        const threshold = 10;
 
         const closestPoint = state.points.reduce((closest, point) => {
             const dist = Math.hypot(point[0] - x, point[1] - y);
-            if (dist < threshold && dist < closest.dist) {
+            if (dist < buttonDistThreshold && dist < closest.dist) {
                 return { point, dist };
             }
             return closest;
@@ -89,8 +100,12 @@ window.addEventListener('load', () => {
         if (!state.imgLoaded) return;
         if (movingPoint) {
             movingPoint = null;
-            redrawAll();
             ui.updatePointsList(pointsList, state.points);
+
+            if (state.points.length >= methodMaxPoints[methodSelect.value]) {
+                rectifyImage();
+            }
+
             return
         }
 
@@ -111,7 +126,6 @@ window.addEventListener('load', () => {
 
         if (state.points.length >= maxPoints) {
             rectifyImage();
-            return;
         }
     });
 
@@ -124,7 +138,7 @@ window.addEventListener('load', () => {
             const y = (ev.clientY - rect.top) * scaleY;
             movingPoint[0] = x;
             movingPoint[1] = y;
-            redrawAll();
+            redrawInputCanvas();
             ui.updatePointsList(pointsList, state.points);
 
             if (methodMaxPoints[methodSelect.value] <= state.points.length) {
@@ -146,70 +160,75 @@ window.addEventListener('load', () => {
         document.getElementsByClassName("text-input-container")[0].style.display = hideRatioInputs ? 'none' : 'flex';
 
         resetPoints();
-        redrawAll();
+        redrawInputCanvas();
         ui.updatePointsList(pointsList, state.points);
     });
 
-    rectifyBtn.addEventListener('click', rectifyImage);
+    showLinesCheckbox1.addEventListener('change', () => {
+        state.showExtraLines1 = showLinesCheckbox1.checked;
+        rectifyImage();
+    });
+
+    showLinesCheckbox2.addEventListener('change', () => {
+        state.showExtraLines2 = showLinesCheckbox2.checked;
+        rectifyImage();
+    });
+
+    rectifyBtn.addEventListener('click', () => {
+        if (!state.imgLoaded) {
+            alert('Carregue uma imagem primeiro');
+            return;
+        }
+        if (state.points.length < methodMaxPoints[methodSelect.value]) {
+            alert(`São necessários pelo menos ${methodMaxPoints[methodSelect.value]} pontos para o método selecionado.`);
+            return H;
+        }
+        rectifyImage();
+    });
+
     ratioInput1.addEventListener('keyup', rectifyImage);
     ratioInput2.addEventListener('keyup', rectifyImage);
     stretchCheckbox.addEventListener('change', rectifyImage);
+    showLinesCheckbox2.addEventListener('change', rectifyImage);
     clearBtn.addEventListener('click', resetPoints);
 });
 
-
 function rectifyImage() {
-    if (!state.imgLoaded) {
-        alert('Carregue uma imagem primeiro');
-        return;
-    }
+    redrawInputCanvas();
 
     let H = getHomography(state.points, parseFloat(ratioInput1.value), parseFloat(ratioInput2.value), methodSelect.value);
 
-    redrawAll();
-
     canvas.applyHomography(inCtx, outCtx, state.imgData, H, stretchCheckbox.checked);
-
-    redrawAll();
 }
 
 function getHomography(points, ratio1, ratio2, method) {
     let H = null;
 
-    if (points.length < methodMaxPoints[methodSelect.value]) {
-        alert(`São necessários pelo menos ${methodMaxPoints[methodSelect.value]} pontos para o método selecionado.`);
-        return H;
-    }
-
     switch (method) {
         case 'parallel': {
-            const { lineInf, v1, v2 } = getVanishingDataParallel(points);
+            const { lineInf, v1, v2 } = getVanishingDataParallel(points, state);
 
-            canvas.drawVanishingVisuals(inCtx, v1, v2, lineInf);
             H = numerical.homographyFromVanishingLine(lineInf);
 
             break;
         }
         case 'crossratio': {
-            const { lineInf, v1, v2 } = getVanishingDataCrossRatio(points, ratio1, ratio2);
+            const { lineInf, v1, v2 } = getVanishingDataCrossRatio(points, ratio1, ratio2, state);
 
-            canvas.drawVanishingVisuals(inCtx, v1, v2, lineInf);
             H = numerical.homographyFromVanishingLine(lineInf);
 
             break;
         }
         case 'homography1d': {
-            const { lineInf, v1, v2 } = getVanishingDataHomography1d(points, ratio1, ratio2);
+            const { lineInf, v1, v2 } = getVanishingDataHomography1d(points, ratio1, ratio2, state);
 
-            canvas.drawVanishingVisuals(inCtx, v1, v2, lineInf);
             H = numerical.homographyFromVanishingLine(lineInf);
 
             break;
         }
         case 'geometric': {
-            const { lineInf, v1, v2 } = getVanishingDataGeometric(points, ratio1, ratio2);
+            const { lineInf, v1, v2 } = getVanishingDataGeometric(points, ratio1, ratio2, state);
 
-            canvas.drawVanishingVisuals(inCtx, v1, v2, lineInf);
             H = numerical.homographyFromVanishingLine(lineInf);
 
             break;
@@ -225,27 +244,27 @@ function getHomography(points, ratio1, ratio2, method) {
     return H;
 }
 
-function redrawAll() {
+function redrawInputCanvas() {
     const redrawState = { ...state, method: methodSelect.value };
     canvas.redraw(inCtx, redrawState);
 }
 
 function resetPoints() {
     state.points = [];
-    redrawAll();
+    redrawInputCanvas();
     ui.updatePointsList(pointsList, state.points);
 }
 
 function addPoint(x, y) {
     state.points.push([x, y, 1]);
-    redrawAll();
+    redrawInputCanvas();
     ui.updatePointsList(pointsList, state.points);
 }
 
 function removePoint(index) {
     if (index >= 0 && index < state.points.length) {
         state.points.splice(index, 1);
-        redrawAll();
+        redrawInputCanvas();
         ui.updatePointsList(pointsList, state.points);
     }
 }
