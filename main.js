@@ -16,6 +16,8 @@ const fileInput = document.getElementById('file');
 const methodSelect = document.getElementById('method');
 
 const stretchCheckbox = document.getElementById('stretchCheckbox');
+const rotateCheckbox = document.getElementById('rotateCheckbox');
+
 const showLinesCheckbox1 = document.getElementById('showLinesCheckbox1');
 const showLinesCheckbox2 = document.getElementById('showLinesCheckbox2');
 
@@ -189,7 +191,7 @@ window.addEventListener('load', () => {
     ratioInput1.addEventListener('keyup', rectifyImage);
     ratioInput2.addEventListener('keyup', rectifyImage);
     stretchCheckbox.addEventListener('change', rectifyImage);
-    showLinesCheckbox2.addEventListener('change', rectifyImage);
+    rotateCheckbox.addEventListener('change', rectifyImage);
     clearBtn.addEventListener('click', resetPoints);
 });
 
@@ -198,7 +200,7 @@ function rectifyImage() {
 
     let H = getHomography(state.points, parseFloat(ratioInput1.value), parseFloat(ratioInput2.value), methodSelect.value);
 
-    canvas.applyHomography(inCtx, outCtx, state.imgData, H, stretchCheckbox.checked);
+    canvas.applyHomography(inCtx, outCtx, state.imgData, H, stretchCheckbox.checked, rotateCheckbox.checked);
 }
 
 function getHomography(points, ratio1, ratio2, method) {

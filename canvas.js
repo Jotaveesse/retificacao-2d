@@ -119,11 +119,14 @@ export function drawLineHomog(ctx, line, lineWidth = 2, color = 'black') {
     }
 }
 
-export function applyHomography(sourceCtx, targetCtx, image, H, stretchToFit = false) {
+export function applyHomography(sourceCtx, targetCtx, image, H, stretchToFit = false, deskew = false) {
     //largura e altura da imagem original
     const w = sourceCtx.canvas.width;
     const h = sourceCtx.canvas.height;
     const srcData = image;
+
+    if (deskew)
+        H = deskewHomography(H, w, h);
 
     // calcula os cantos da imagem transformada usando a homografia H
     const bounds = getTransformedBounds(w, h, H);
@@ -211,6 +214,43 @@ export function applyHomography(sourceCtx, targetCtx, image, H, stretchToFit = f
     }
 
     targetCtx.putImageData(dstData, 0, 0);
+}
+
+function deskewHomography(H, w, h) {
+    const bottomLeft  = numerical.transformPoint([0, h - 1, 1], H);
+    const bottomRight = numerical.transformPoint([w - 1, h - 1, 1], H);
+
+    const dx = bottomRight[0] - bottomLeft[0];
+    const dy = bottomRight[1] - bottomLeft[1];
+
+    const angle = Math.atan2(dy, dx);
+    if (Math.abs(angle) < EPSILON) return H; 
+
+    //centro de rotaão é o meio da base
+    const centerX = (bottomLeft[0] + bottomRight[0]) / 2;
+    const centerY = (bottomLeft[1] + bottomRight[1]) / 2;
+
+    const cosA = Math.cos(-angle);
+    const sinA = Math.sin(-angle);
+
+    const T1 = [
+        [1, 0, -centerX],
+        [0, 1, -centerY],
+        [0, 0, 1]
+    ];
+    const R = [
+        [cosA, -sinA, 0],
+        [sinA,  cosA, 0],
+        [0,     0,    1]
+    ];
+    const T2 = [
+        [1, 0, centerX],
+        [0, 1, centerY],
+        [0, 0, 1]
+    ];
+
+    const rotationCorrection = math.multiply(T2, R, T1);
+    return math.multiply(rotationCorrection, H);
 }
 
 function getTransformedBounds(width, height, H) {
